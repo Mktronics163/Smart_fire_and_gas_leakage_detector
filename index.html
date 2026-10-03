@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fire & Gas Leakage Detector</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: #fff;
+    padding: 24px;
+  }
+  .card {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 20px;
+    padding: 40px 48px;
+    text-align: center;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  h1 { font-size: 1.3rem; font-weight: 600; margin-bottom: 28px; letter-spacing: 0.02em; }
+
+  .status-banner {
+    border-radius: 16px;
+    padding: 22px;
+    margin-bottom: 20px;
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .status-banner.safe {
+    background: rgba(76, 175, 80, 0.15);
+    box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.4) inset;
+  }
+  .status-banner.danger {
+    background: rgba(244, 67, 54, 0.2);
+    box-shadow: 0 0 0 1px rgba(244, 67, 54, 0.6) inset;
+    animation: pulseDanger 1.2s infinite;
+  }
+  @keyframes pulseDanger {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(244,67,54,0.6) inset; }
+    50% { box-shadow: 0 0 0 4px rgba(244,67,54,0.9) inset; }
+  }
+  .status-label { font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6; margin-bottom: 6px; }
+  .status-value { font-size: 2rem; font-weight: 800; }
+  .status-value.safe-text { color: #4caf50; }
+  .status-value.danger-text { color: #ff5252; }
+
+  .ai-banner {
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .ai-banner.normal {
+    background: rgba(0, 188, 212, 0.08);
+    box-shadow: 0 0 0 1px rgba(0, 188, 212, 0.25) inset;
+  }
+  .ai-banner.anomaly {
+    background: rgba(255, 193, 7, 0.15);
+    box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.6) inset;
+    animation: pulseAmber 1.4s infinite;
+  }
+  @keyframes pulseAmber {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,193,7,0.6) inset; }
+    50% { box-shadow: 0 0 0 3px rgba(255,193,7,0.9) inset; }
+  }
+  .ai-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.6; }
+  .ai-value { font-size: 0.85rem; font-weight: 700; }
+  .ai-banner.normal .ai-value { color: #00bcd4; }
+  .ai-banner.anomaly .ai-value { color: #ffc107; }
+
+  .readings { display: flex; gap: 16px; margin-bottom: 24px; }
+  .reading-box {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border-radius: 14px;
+    padding: 16px 12px;
+  }
+  .reading-box .label { font-size: 0.7rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .reading-box .value { font-size: 1.5rem; font-weight: 700; }
+
+  .gas-bar-wrap { background: rgba(255,255,255,0.08); border-radius: 999px; height: 10px; overflow: hidden; margin: 10px 0 6px; }
+  .gas-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, #4caf50, #ffeb3b, #f44336); transition: width 0.6s ease; }
+  .gas-bar-labels { display: flex; justify-content: space-between; font-size: 0.65rem; color: rgba(255,255,255,0.35); }
+
+  .flame-icon { font-size: 1.7rem; }
+  .flame-icon.off { opacity: 0.25; }
+  .flame-icon.on { filter: drop-shadow(0 0 6px #ff5722); }
+
+  .graph-section { margin: 24px 0; text-align: left; }
+  .graph-label { font-size: 0.7rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  #gasGraph { width: 100%; height: 120px; background: rgba(255,255,255,0.04); border-radius: 12px; display: block; }
+
+  .controls { margin-bottom: 20px; text-align: left; }
+  .btn-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    color: #fff;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-test { flex: 1; background: rgba(244, 67, 54, 0.25); border: 1px solid rgba(244,67,54,0.5); }
+  .btn-test:hover { background: rgba(244, 67, 54, 0.4); }
+  .btn-silence { flex: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); }
+  .btn-silence:hover { background: rgba(255,255,255,0.15); }
+  .btn-set { background: rgba(0, 188, 212, 0.25); border: 1px solid rgba(0,188,212,0.5); padding: 10px 14px; }
+  .btn-set:hover { background: rgba(0, 188, 212, 0.4); }
+
+  .threshold-row label { font-size: 0.7rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 8px; }
+  .threshold-input-wrap { display: flex; gap: 8px; }
+  #thresholdInput {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    color: #fff;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+  }
+  #thresholdInput:focus { outline: none; border-color: rgba(0,188,212,0.6); }
+
+  .control-feedback { font-size: 0.72rem; color: rgba(255,255,255,0.4); min-height: 16px; margin-top: 8px; text-align: center; }
+  .control-feedback.success { color: #4caf50; }
+  .control-feedback.error { color: #ff5252; }
+
+  .footer-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; font-size: 0.72rem; color: rgba(255,255,255,0.35); letter-spacing: 0.05em; text-transform: uppercase; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; animation: pulse 2s infinite; }
+  .dot.error { background: #f44336; animation: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Smart Fire & Gas Leakage Detector</h1>
+
+    <div class="status-banner safe" id="statusBanner">
+      <div class="status-label">System status</div>
+      <div class="status-value safe-text" id="statusValue">Connecting…</div>
+    </div>
+
+    <div class="ai-banner normal" id="aiBanner">
+      <div class="ai-label">AI pattern detection</div>
+      <div class="ai-value" id="aiValue">Learning baseline…</div>
+    </div>
+
+    <div class="readings">
+      <div class="reading-box">
+        <div class="label">Flame</div>
+        <div class="value flame-icon off" id="flameIcon">&#128293;</div>
+      </div>
+      <div class="reading-box">
+        <div class="label">Gas level</div>
+        <div class="value" id="gasValue">--</div>
+      </div>
+    </div>
+
+    <div class="gas-bar-wrap"><div class="gas-bar-fill" id="gasBar"></div></div>
+    <div class="gas-bar-labels"><span>0</span><span>1023</span></div>
+
+    <div class="graph-section">
+      <div class="graph-label">Gas level — last 5 minutes</div>
+      <canvas id="gasGraph" width="360" height="120"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="btn-row">
+        <button class="btn btn-test" id="testBtn">Test Alarm</button>
+        <button class="btn btn-silence" id="silenceBtn">Silence</button>
+      </div>
+      <div class="threshold-row">
+        <label for="thresholdInput">Gas threshold</label>
+        <div class="threshold-input-wrap">
+          <input type="number" id="thresholdInput" value="200" min="0" max="1023" />
+          <button class="btn btn-set" id="setThresholdBtn">Set</button>
+        </div>
+      </div>
+      <div class="control-feedback" id="controlFeedback"></div>
+    </div>
+
+    <div class="footer-row">
+      <div class="dot" id="dot"></div>
+      <span id="footerText">last update: --</span>
+    </div>
+  </div>
+
+<script>
+  var GAS_MAX = 1023;
+  var GAS_SAFE_LIMIT = 200; // keep in sync with sketch.ino's gasSafeLimit
+  var aiSampleCount = 0;
+
+  var canvas = document.getElementById('gasGraph');
+  var ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function drawGraph(points) {
+    var w = canvas.getBoundingClientRect().width;
+    var h = canvas.getBoundingClientRect().height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (!points || points.length < 2) return;
+
+    var padding = 8;
+    var plotW = w - padding * 2;
+    var plotH = h - padding * 2;
+
+    var thresholdY = padding + plotH * (1 - GAS_SAFE_LIMIT / GAS_MAX);
+    ctx.strokeStyle = 'rgba(255, 82, 82, 0.4)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, thresholdY);
+    ctx.lineTo(w - padding, thresholdY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = '#00bcd4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    points.forEach(function (p, i) {
+      var x = padding + (i / (points.length - 1)) * plotW;
+      var y = padding + plotH * (1 - Math.min(1, p.gas / GAS_MAX));
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    var lastX = padding + plotW;
+    ctx.lineTo(lastX, padding + plotH);
+    ctx.lineTo(padding, padding + plotH);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0, 188, 212, 0.12)';
+    ctx.fill();
+  }
+
+  function refreshHistory() {
+    fetch('/api/history')
+      .then(function (r) { return r.json(); })
+      .then(function (d) { drawGraph(d.points); })
+      .catch(function () { /* graph just won't update this tick */ });
+  }
+
+  function refresh() {
+    fetch('/api/status')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) throw new Error(d.error);
+
+        var banner = document.getElementById('statusBanner');
+        var statusValue = document.getElementById('statusValue');
+        var aiBanner = document.getElementById('aiBanner');
+        var aiValue = document.getElementById('aiValue');
+        var flameIcon = document.getElementById('flameIcon');
+        var gasValue = document.getElementById('gasValue');
+        var gasBar = document.getElementById('gasBar');
+
+        gasValue.textContent = d.gas;
+        gasBar.style.width = Math.min(100, (d.gas / GAS_MAX) * 100).toFixed(1) + '%';
+
+        flameIcon.className = 'value flame-icon ' + (d.flame ? 'on' : 'off');
+
+        if (d.danger) {
+          banner.className = 'status-banner danger';
+          statusValue.className = 'status-value danger-text';
+          statusValue.textContent = '\u26A0 DANGER';
+        } else {
+          banner.className = 'status-banner safe';
+          statusValue.className = 'status-value safe-text';
+          statusValue.textContent = 'SAFE';
+        }
+
+        if (d.ai_anomaly) {
+          aiBanner.className = 'ai-banner anomaly';
+          aiValue.textContent = 'Unusual pattern (z=' + d.ai_z_score + ')';
+        } else {
+          aiSampleCount++;
+          aiBanner.className = 'ai-banner normal';
+          aiValue.textContent = (aiSampleCount < 15)
+            ? 'Learning baseline…'
+            : 'Normal (z=' + d.ai_z_score + ')';
+        }
+
+        document.getElementById('dot').className = 'dot';
+        var t = new Date(d.timestamp * 1000);
+        document.getElementById('footerText').textContent = 'last update: ' + t.toLocaleTimeString();
+      })
+      .catch(function () {
+        document.getElementById('dot').className = 'dot error';
+        document.getElementById('footerText').textContent = 'disconnected';
+      });
+  }
+
+  setInterval(refresh, 1000);
+  setInterval(refreshHistory, 1000);
+  refresh();
+  refreshHistory();
+
+  var feedback = document.getElementById('controlFeedback');
+
+  function showFeedback(text, isError) {
+    feedback.textContent = text;
+    feedback.className = 'control-feedback ' + (isError ? 'error' : 'success');
+    setTimeout(function () {
+      feedback.textContent = '';
+      feedback.className = 'control-feedback';
+    }, 3000);
+  }
+
+  document.getElementById('testBtn').addEventListener('click', function () {
+    fetch('/api/test_alarm')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        showFeedback(d.ok ? 'Test alarm triggered (5s)' : ('Error: ' + d.error), !d.ok);
+      })
+      .catch(function () { showFeedback('Could not reach device', true); });
+  });
+
+  document.getElementById('silenceBtn').addEventListener('click', function () {
+    fetch('/api/silence_alarm')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        showFeedback(d.ok ? 'Alarm silenced (5s)' : ('Error: ' + d.error), !d.ok);
+      })
+      .catch(function () { showFeedback('Could not reach device', true); });
+  });
+
+  document.getElementById('setThresholdBtn').addEventListener('click', function () {
+    var value = document.getElementById('thresholdInput').value;
+    fetch('/api/set_threshold?value=' + encodeURIComponent(value))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          GAS_SAFE_LIMIT = d.threshold;
+          showFeedback('Threshold set to ' + d.threshold, false);
+        } else {
+          showFeedback('Error: ' + d.error, true);
+        }
+      })
+      .catch(function () { showFeedback('Could not reach device', true); });
+  });
+</script>
+</body>
+</html>
