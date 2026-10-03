@@ -1,6 +1,6 @@
-name: Controlling_led_with_streamlit
+name: Smart fire and gas leakage detector
 description: ""
 ports: []
 bricks:
-- arduino:streamlit_ui: {}
+- arduino:web_ui: {}
 icon: 😀
